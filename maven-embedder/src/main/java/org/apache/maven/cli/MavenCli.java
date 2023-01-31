@@ -147,6 +147,10 @@ public class MavenCli {
 
     private static final String EXTENSIONS_FILENAME = ".mvn/extensions.xml";
 
+    private static final String USER_EXTENSIONS_FILE_PROPERTY = "maven.userExtensionsFile";
+
+    private static final File DEFAULT_USER_EXTENSIONS_FILE = new File(USER_MAVEN_CONFIGURATION_HOME, "extensions.xml");
+
     private static final String MVN_MAVEN_CONFIG = ".mvn/maven.config";
 
     public static final String STYLE_COLOR_PROPERTY = "style.color";
@@ -643,19 +647,37 @@ public class MavenCli {
 
     private List<CoreExtensionEntry> loadCoreExtensions(
             CliRequest cliRequest, ClassRealm containerRealm, Set<String> providedArtifacts) throws Exception {
+
+        File userExtensionsFile;
+        File projectExtensionsFile;
+
+        String userExtensionsFileName = cliRequest.userProperties.getProperty(USER_EXTENSIONS_FILE_PROPERTY);
+        if (userExtensionsFileName == null) {
+            userExtensionsFile = DEFAULT_USER_EXTENSIONS_FILE;
+        } else {
+            // If not absolute, relative to directory of default user extensions file
+            userExtensionsFile = new File(DEFAULT_USER_EXTENSIONS_FILE.getParentFile(), userExtensionsFileName);
+        }
+
         if (cliRequest.multiModuleProjectDirectory == null) {
-            return Collections.emptyList();
+            projectExtensionsFile = null;
+        } else {
+            projectExtensionsFile = new File(cliRequest.multiModuleProjectDirectory, EXTENSIONS_FILENAME);
         }
 
-        File extensionsFile = new File(cliRequest.multiModuleProjectDirectory, EXTENSIONS_FILENAME);
-        if (!extensionsFile.isFile()) {
-            return Collections.emptyList();
+        List<CoreExtension> extensions = new ArrayList<>();
+        if (userExtensionsFile.isFile()) {
+            extensions.addAll(readCoreExtensionsDescriptor(userExtensionsFile));
+        }
+        if (projectExtensionsFile != null && projectExtensionsFile.isFile()) {
+            extensions.addAll(readCoreExtensionsDescriptor(projectExtensionsFile));
         }
 
-        List<CoreExtension> extensions = readCoreExtensionsDescriptor(extensionsFile);
         if (extensions.isEmpty()) {
             return Collections.emptyList();
         }
+
+        // TODO collapse logic
 
         ContainerConfiguration cc = new DefaultContainerConfiguration() //
                 .setClassWorld(cliRequest.classWorld) //
